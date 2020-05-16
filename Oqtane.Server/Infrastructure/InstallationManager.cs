@@ -7,7 +7,6 @@ using System.Xml;
 using Oqtane.Shared;
 using System;
 using System.Diagnostics;
-using Oqtane.Infrastructure.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Oqtane.Infrastructure
@@ -27,20 +26,30 @@ namespace Oqtane.Infrastructure
 
         public void InstallPackages(string folders, bool restart)
         {
+            var webRootPath = _environment.WebRootPath;
+            
+            var install = InstallPackages(folders, webRootPath);
+
+            if (install && restart)
+            {
+                RestartApplication();
+            }
+        }
+
+        public static bool InstallPackages(string folders, string webRootPath)
+        {
             bool install = false;
             string binFolder = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
 
             foreach (string folder in folders.Split(','))
             {
-                string sourceFolder = Path.Combine(_environment.WebRootPath, folder);
-
-                // create folder if it does not exist
+                string sourceFolder = Path.Combine(webRootPath, folder);
                 if (!Directory.Exists(sourceFolder))
                 {
                     Directory.CreateDirectory(sourceFolder);
                 }
 
-                // iterate through packages
+                // iterate through Nuget packages in source folder
                 foreach (string packagename in Directory.GetFiles(sourceFolder, "*.nupkg"))
                 {
                     string name = Path.GetFileNameWithoutExtension(packagename);
@@ -67,6 +76,7 @@ namespace Oqtane.Infrastructure
                                 {
                                     frameworkversion = node.Attributes["version"].Value;
                                 }
+
                                 reader.Close();
                             }
                         }
@@ -77,49 +87,45 @@ namespace Oqtane.Infrastructure
                             // deploy to appropriate locations
                             foreach (ZipArchiveEntry entry in archive.Entries)
                             {
+                                string foldername = Path.GetDirectoryName(entry.FullName).Split('\\')[0];
                                 string filename = Path.GetFileName(entry.FullName);
-                                switch (Path.GetExtension(filename).ToLower())
+
+                                switch (foldername)
                                 {
-                                    case ".pdb":
-                                    case ".dll":
+                                    case "lib":
                                         if (binFolder != null) entry.ExtractToFile(Path.Combine(binFolder, filename), true);
                                         break;
-                                    case ".png":
-                                    case ".jpg":
-                                    case ".jpeg":
-                                    case ".gif":
-                                    case ".svg":
-                                    case ".js":
-                                    case ".css":
-                                        filename = sourceFolder + "\\" + entry.FullName.Replace("wwwroot", name).Replace("/", "\\");
+                                    case "wwwroot":
+                                        filename = Path.Combine(sourceFolder, Utilities.PathCombine(entry.FullName.Replace("wwwroot", name).Split('/')));
                                         if (!Directory.Exists(Path.GetDirectoryName(filename)))
                                         {
                                             Directory.CreateDirectory(Path.GetDirectoryName(filename));
                                         }
                                         entry.ExtractToFile(filename, true);
                                         break;
+                                    case "content":
+                                        if (Path.GetDirectoryName(entry.FullName) != "content") // assets must be in subfolders
+                                        {
+                                            filename = Path.Combine(webRootPath, Utilities.PathCombine(entry.FullName.Replace("content", "").Split('/')));
+                                            if (!Directory.Exists(Path.GetDirectoryName(filename)))
+                                            {
+                                                Directory.CreateDirectory(Path.GetDirectoryName(filename));
+                                            }
+                                            entry.ExtractToFile(filename, true);
+                                        }
+                                        break;
                                 }
                             }
                         }
                     }
+
                     // remove package
                     File.Delete(packagename);
                     install = true;
                 }
             }
 
-            if (install && restart)
-            {
-                if (restart)
-                {
-                    RestartApplication();
-                }
-                else
-                {
-                    _cache.Remove("moduledefinitions");
-                    _cache.Remove("jobs");
-                }
-            }
+            return install;
         }
 
         public void UpgradeFramework()
@@ -176,17 +182,17 @@ namespace Oqtane.Infrastructure
 
         private void FinishUpgrade()
         {
-            string folder = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
-
             // check if upgrade application exists
+            string folder = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
             if (folder == null || !File.Exists(Path.Combine(folder, "Oqtane.Upgrade.exe"))) return;
+
             // run upgrade application
             var process = new Process
             {
                 StartInfo =
                 {
                     FileName = Path.Combine(folder, "Oqtane.Upgrade.exe"),
-                    Arguments = "",
+                    Arguments = "\"" + _environment.ContentRootPath + "\" \"" + _environment.WebRootPath + "\"",
                     ErrorDialog = false,
                     UseShellExecute = false,
                     CreateNoWindow = true,

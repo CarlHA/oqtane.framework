@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Oqtane.Models;
 using System.Collections.Generic;
 using Oqtane.Shared;
-using Oqtane.Infrastructure.Interfaces;
+using Oqtane.Infrastructure;
 using Oqtane.Repository;
 using Oqtane.Enums;
 using System.Data.SqlClient;
@@ -14,7 +14,7 @@ using System;
 
 namespace Oqtane.Controllers
 {
-    [Route("{site}/api/[controller]")]
+    [Route("{alias}/api/[controller]")]
     public class SqlController : Controller
     {
         private readonly ITenantRepository _tenants;

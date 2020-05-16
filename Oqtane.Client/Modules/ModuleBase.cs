@@ -9,7 +9,7 @@ using Oqtane.UI;
 
 namespace Oqtane.Modules
 {
-    public class ModuleBase : ComponentBase, IModuleControl
+    public abstract class ModuleBase : ComponentBase, IModuleControl
     {
         private Logger _logger;
 
@@ -87,7 +87,7 @@ namespace Oqtane.Modules
 
         public string ContentUrl(int fileid)
         {
-            return Utilities.ContentUrl(PageState.Alias.Path, fileid);
+            return Utilities.ContentUrl(PageState.Alias, fileid);
         }
 
         // user feedback methods
