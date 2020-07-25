@@ -194,10 +194,12 @@ namespace Oqtane.Infrastructure
 
             if (install.TenantName == Constants.MasterTenant)
             {
+                MigrateScriptNamingConvention("Master", install.ConnectionString);
+
                 var upgradeConfig = DeployChanges
-                    .To
-                    .SqlDatabase(NormalizeConnectionString(install.ConnectionString))
-                    .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly(), s => s.Contains("Master.") && s.EndsWith(".sql",StringComparison.OrdinalIgnoreCase));
+                .To
+                .SqlDatabase(NormalizeConnectionString(install.ConnectionString))
+                .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly(), s => s.Contains("Master.") && s.EndsWith(".sql",StringComparison.OrdinalIgnoreCase));
 
                 var upgrade = upgradeConfig.Build();
                 if (upgrade.IsUpgradeRequired())
@@ -285,6 +287,8 @@ namespace Oqtane.Infrastructure
                 {
                     foreach (var tenant in db.Tenant.ToList())
                     {
+                        MigrateScriptNamingConvention("Tenant", tenant.DBConnectionString);
+
                         var upgradeConfig = DeployChanges.To.SqlDatabase(NormalizeConnectionString(tenant.DBConnectionString))
                             .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly(), s => s.Contains("Tenant.") && s.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
 
@@ -457,7 +461,7 @@ namespace Oqtane.Infrastructure
                                 userroles.AddUserRole(userRole);
 
                                 // add user folder
-                                var folder = folders.GetFolder(user.SiteId, Utilities.PathCombine("Users", "\\"));
+                                var folder = folders.GetFolder(user.SiteId, Utilities.PathCombine("Users", Path.DirectorySeparatorChar.ToString()));
                                 if (folder != null)
                                 {
                                     folders.AddFolder(new Folder
@@ -465,7 +469,7 @@ namespace Oqtane.Infrastructure
                                         SiteId = folder.SiteId,
                                         ParentId = folder.FolderId,
                                         Name = "My Folder",
-                                        Path = Utilities.PathCombine(folder.Path, user.UserId.ToString(), "\\"),
+                                        Path = Utilities.PathCombine(folder.Path, user.UserId.ToString(), Path.DirectorySeparatorChar.ToString()),
                                         Order = 1,
                                         IsSystem = true,
                                         Permissions = new List<Permission>
@@ -568,6 +572,18 @@ namespace Oqtane.Infrastructure
             if (string.IsNullOrEmpty(value)) value = defaultValue;
             return value;
         }
-        
+
+        private void MigrateScriptNamingConvention(string scriptType, string connectionString)
+        {
+            // migrate to new naming convention for scripts
+            var migrateConfig = DeployChanges.To.SqlDatabase(NormalizeConnectionString(connectionString))
+                .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly(), s => s == scriptType + ".00.00.00.00.sql");
+            var migrate = migrateConfig.Build();
+            if (migrate.IsUpgradeRequired())
+            {
+                migrate.PerformUpgrade();
+            }
+        }
+
     }
 }

@@ -125,7 +125,7 @@ namespace Oqtane.Controllers
                     _syncManager.AddSyncEvent(_tenants.GetTenant().TenantId, EntityNames.Site, page.SiteId);
                     _logger.Log(LogLevel.Information, this, LogFunction.Create, "Page Added {Page}", page);
 
-                    if (!page.EditMode)
+                    if (!page.Path.StartsWith("admin/"))
                     {
                         var modules = _modules.GetModules(page.SiteId).Where(item => item.AllPages).ToList();
                         foreach (Module module in modules)
@@ -163,14 +163,13 @@ namespace Oqtane.Controllers
                 page.Order = 0;
                 page.IsNavigation = false;
                 page.Url = "";
-                page.EditMode = false;
                 page.ThemeType = parent.ThemeType;
                 page.LayoutType = parent.LayoutType;
                 page.DefaultContainerType = parent.DefaultContainerType;
                 page.Icon = parent.Icon;
                 page.Permissions = new List<Permission> {
-                    new Permission(PermissionNames.View, userid, true),
-                    new Permission(PermissionNames.Edit, userid, true)
+                    new Permission(PermissionNames.View, int.Parse(userid), true),
+                    new Permission(PermissionNames.Edit, int.Parse(userid), true)
                 }.EncodePermissions();
                 page.IsPersonalizable = false;
                 page.UserId = int.Parse(userid);
@@ -187,8 +186,8 @@ namespace Oqtane.Controllers
                     module.ModuleDefinitionName = pm.Module.ModuleDefinitionName;
                     module.AllPages = false;
                     module.Permissions = new List<Permission> {
-                        new Permission(PermissionNames.View, userid, true),
-                        new Permission(PermissionNames.Edit, userid, true)
+                        new Permission(PermissionNames.View, int.Parse(userid), true),
+                        new Permission(PermissionNames.Edit, int.Parse(userid), true)
                     }.EncodePermissions();
                     module = _modules.AddModule(module);
 
